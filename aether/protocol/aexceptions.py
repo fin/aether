@@ -14,7 +14,7 @@ class AeInvalidFilenameException(Exception):
         return u'%s / %s'%(super(AeInvalidFilenameException, self).__repr__(), self.directory)
 
 
-class AeIvalidFilesizeException(Exception):
+class AeInvalidFilesizeException(Exception):
     def __init__(self, size1, size2):
         self.size1 = size1
         self.size2 = size2

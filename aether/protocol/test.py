@@ -35,19 +35,38 @@ class ServerTestCase(unittest.TestCase):
         factory = protocol.AetherTransferServerFactory(self.baseDir)
         self.tr = proto_helpers.StringTransportWithDisconnection()
         self.proto = factory.buildProtocol(('127.0.0.1', 0))
+        self.tr.protocol = self.proto
         self.proto.makeConnection(self.tr)
 
     def test_receive(self):
         self.proto.dataReceived('eyJuYW1lIjogInRlc3QxLnR4dCIsICJzaXplIjogMTZ9\n\r\nohaithar\nohlol.\n')
         self.assert_(self.proto.receivedBytes)
+        self.tr.loseConnection()
     
     def test_receive_head_fail(self):
         self.assertRaises(Exception, self.proto.dataReceived, 'eyuYW1lIjogInRlc3QxLnR4dCIsICJzaXplIjogMTZ9\n\r\nohaithar\nohlol.\n')
+        self.tr.loseConnection()
     
     def test_receive_filename_fail(self):
         d = {'name': '../../ohlol', 'size': -1}
         self.assertRaises(aexceptions.AeInvalidFilenameException, self.proto.dataReceived, '%s\n\r\nohaithar\nohlol.\n' % base64.encodestring(json.dumps(d)))
         self.proto.absolute_filename = None
+        self.tr.loseConnection()
+    
+    def test_receive_filesize_negative(self):
+        d = {'name': 'ohlol', 'size': -1}
+        self.assertRaises(aexceptions.AeInvalidFilesizeException, self.proto.dataReceived, '%s\n\r\nohaithar\nohlol.\n' % base64.encodestring(json.dumps(d)))
+        self.assertRaises(aexceptions.AeInvalidFilesizeException, self.tr.loseConnection)
+
+    def test_receive_filesize_toohigh(self):
+        d = {'name': 'ohlol', 'size': 1}
+        self.assertRaises(aexceptions.AeInvalidFilesizeException, self.proto.dataReceived, '%s\n\r\nohaithar\nohlol.\n' % base64.encodestring(json.dumps(d)))
+        self.assertRaises(aexceptions.AeInvalidFilesizeException, self.tr.loseConnection)
+    
+    def test_receive_filesize_toohigh(self):
+        d = {'name': 'ohlol', 'size': 1123}
+        self.proto.dataReceived('%s\n\r\nohaithar\nohlol.\n' % base64.encodestring(json.dumps(d)))
+        self.assertRaises(aexceptions.AeInvalidFilesizeException, self.tr.loseConnection)
 
     def tearDown(self):
         if hasattr(self.proto, 'absolute_filename') and self.proto.absolute_filename:

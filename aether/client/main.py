@@ -8,7 +8,7 @@ from twisted.internet.protocol import ClientCreator
 
 
 def send(x):
-    x.sendFile('protocol/test/test1.txt')
+    reactor.callLater(1, x.sendFile, '/home/fin/Mixotic_200_-_Anonymous_-_200_9_hours.mp3')
 
 if __name__ == '__main__':
     c = ClientCreator(reactor, AetherTransferClient)

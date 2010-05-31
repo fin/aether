@@ -1,4 +1,4 @@
-from twisted.protocols.basic import LineReceiver
+from twisted.protocols.basic import LineReceiver, FileSender
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet import  reactor
 import base64
@@ -19,7 +19,6 @@ class AetherTransferServer(LineReceiver):
         self.receivedBytes = 0
 
     def connectionMade(self):
-        print 'got connection'
         pass
 
     def _mkValidFilename(self):
@@ -39,15 +38,12 @@ class AetherTransferServer(LineReceiver):
         self.fp = open(self.absolute_filename, 'w')
 
     def lineReceived(self, line):
-        print line
         d = json.loads(base64.decodestring(line))
         self.filesize = d['size']
         self.filename = d['name']
         self.absolute_filename = os.path.join(self.factory.baseDir, self.filename)
         try:
-            print self.absolute_filename
             self.absolute_filename = self._mkValidFilename()
-            print self.absolute_filename
         except Exception, e:
             self.absolute_filename = None
             self.transport.loseConnection()
@@ -59,18 +55,15 @@ class AetherTransferServer(LineReceiver):
         self.setRawMode()
 
     def rawDataReceived(self, data):
-        print data
         self.fp.write(data)
         self.receivedBytes += len(data)
         if self.receivedBytes > self.filesize:
             raise AeInvalidFilesizeException(self.receivedBytes, self.filesize)
         
-        self.factory.progressCallback(self.filename, self.receivedBytes, self.filesize)
+        self.factory.progressCallback(self.absolute_filename, self.receivedBytes, self.filesize)
 
 
     def connectionLost(self, reason):
-        print 'done'
-        print self.receivedBytes
         if self.fp:
             try:
                 self.fp.close()
@@ -79,7 +72,6 @@ class AetherTransferServer(LineReceiver):
         
         if self.absolute_filename and os.path.getsize(self.absolute_filename) != self.filesize:
             raise AeInvalidFilesizeException(self.filesize, os.path.getsize(self.absolute_filename))
-        print reason
 
 class AetherTransferServerFactory(Factory):
     protocol = AetherTransferServer
@@ -110,13 +102,17 @@ class AetherTransferClient(Protocol):
         self.transport.write(base64.encodestring(json.dumps(d)))
         self.transport.write('\r\n')
 
-        for chunk in self.fp.read(4096):
-            self.transport.write(chunk)
-            self.sentBytes += len(chunk)
+        sender = FileSender()
+        sender.CHUNK_SIZE = 2 ** 16
 
+        d = sender.beginFileTransfer(self.fp, self.transport)
+
+        d.addCallback(self.done)
+
+    def done(self, wtf):
         self.transport.loseConnection()
 
     def connectionLost(self, reason):
-        print reason
+        print 'lost'
         reactor.stop()
 

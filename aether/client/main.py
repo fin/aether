@@ -26,13 +26,14 @@ class Sender(object):
     def send(self, x):
         reactor.callLater(1, x.sendFile, self.filename)
 
-def resolve_callback(serviceName, sdRef, flags, interfaceIndex, errorCode, fullname,
+def resolve_callback(addcallback, serviceName, sdRef, flags, interfaceIndex, errorCode, fullname,
                         hosttarget, port, txtRecord):
     if errorCode:
         print errorCode
         return
-    resolved[serviceName] = (fullname, hosttarget, port, txtRecord)
-    print resolved[serviceName]
+    addcallback(serviceName=serviceName, sdRef=sdRef, flags=flags, interfaceIndex=interfaceIndex,
+            errorCode=errorCode, fullname=fullname, hosttarget=hosttarget, port=port,
+            txtRecord=txtRecord)
 
 
 
@@ -51,21 +52,25 @@ if __name__ == '__main__':
 
     if do=='list':
 
-        def browse_callback(sdRef, flags, interfaceIndex, errorCode, serviceName,
+        def browse_callback(addcallback, removecallback, sdRef, flags, interfaceIndex, errorCode, serviceName,
                                     regtype, replyDomain):
-            if errorCode:
+            if errorCode  != pybonjour.kDNSServiceErr_NoError:
                 print 'what'
                 print errorCode
                 return
+            if not (flags & pybonjour.kDNSServiceFlagsAdd):
+                removecallback(serviceName=serviceName)
+                return
+
             resolve_sdRef = pybonjour.DNSServiceResolve(0,
                                                             interfaceIndex,
                                                             serviceName,
                                                             regtype,
                                                             replyDomain,
-                                                            lambda *x, **y: resolve_callback(serviceName, *x, **y))
+                                                            lambda *x, **y: resolve_callback(addcallback, serviceName, *x, **y))
             try:
                 while not serviceName in resolved:
-                    ready = select.select([resolve_sdRef], [], [])
+                    ready = select.select([resolve_sdRef], [], [], 1)
                     if resolve_sdRef not in ready[0]:
                         print 'Resolve timed out'
                         break
@@ -73,8 +78,10 @@ if __name__ == '__main__':
             finally:
                 resolve_sdRef.close()
 
+        d = {}
+
         browse_sdRef = pybonjour.DNSServiceBrowse(regtype = regtype,
-                                                          callBack = browse_callback)
+                callBack = lambda *x, **y: browse_callback(lambda serviceName, *a, **b: d.__setitem__(serviceName, (a, b)), lambda serviceName: d.__delitem__(serviceName), *x, **y))
 
         end = datetime.now() + timedelta(seconds=10)
 
@@ -82,6 +89,7 @@ if __name__ == '__main__':
             ready = select.select([browse_sdRef], [], [], 10) 
             if browse_sdRef in ready[0]:
                 pybonjour.DNSServiceProcessResult(browse_sdRef)
+            print d
             time.sleep(0.5)
-                    
+
 

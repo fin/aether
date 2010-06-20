@@ -2,8 +2,14 @@
 
 """ ohlol """
 
-from aether.protocol.protocol import AetherTransferClient
+import sys, math
+
+if sys.argv[1]=='ui':
+    from twisted.internet import gtk2reactor # for gtk-2.0
+    gtk2reactor.install()
 from twisted.internet import reactor, threads
+
+from aether.protocol.protocol import AetherTransferClient
 from twisted.internet.protocol import ClientCreator
 
 import pybonjour
@@ -12,8 +18,9 @@ import select
 
 from optparse import OptionParser
 
-import sys, math
 from datetime import datetime, timedelta
+
+
 
 
 regtype = u'_at_nomin_aether._tcp'
@@ -113,3 +120,17 @@ if __name__ == '__main__':
         d = {}
         browse(regtype, lambda serviceName, *a, **b: d.__setitem__(serviceName, (a, b)), lambda serviceName: d.__delitem__(serviceName))
         print d
+
+    if do=='ui':
+        print 'ohlol'
+        import gtk
+        quit = gtk.ImageMenuItem('gtk-quit')
+        quit.connect('activate', gtk.main_quit)
+
+        si = gtk.status_icon_new_from_file('statusicon.png')
+        menu = gtk.Menu()
+        menu.append(quit)
+        menu.show_all()
+        si.connect('popup-menu', lambda tray, button, time: menu.popup(None, None, None, button, time))
+        reactor.run()
+

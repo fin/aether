@@ -8,13 +8,10 @@ from twisted.internet import reactor
 
 from aether.protocol.protocol import AetherTransferClient
 from twisted.internet.protocol import ClientCreator
-
 import pybonjour
 import time
 import select
-
 from optparse import OptionParser
-
 from datetime import datetime, timedelta
 
 
@@ -53,13 +50,18 @@ def resolve_callback(addcallback, serviceName, regtype, replyDomain, sdRef, flag
             txtRecord=txtRecord)
 
 
-def resolve(addcallback, serviceName, regtype, interfaceIndex=0, replyDomain=''):
+def resolve(addcallback, serviceName, regtype, interfaceIndex=6, replyDomain=None):
+    replyDomain = replyDomain or 'local.'
+
+    def cb(*x, **y):
+        return resolve_callback(addcallback, serviceName, regtype, replyDomain, *x, **y)
+
     resolve_sdRef = pybonjour.DNSServiceResolve(0,
                                                     interfaceIndex,
                                                     serviceName,
                                                     regtype,
                                                     replyDomain,
-                                                    lambda *x, **y: resolve_callback(addcallback, serviceName, regtype, replyDomain, *x, **y))
+                                                    cb)
     try:
         try:
             del resolved[serviceName]
@@ -106,7 +108,7 @@ def browse(regtype, addcallback, removecallback, timeout=lambda: False):
     print 'done'
 
 
-def send(target, filename, end_callback=reactor.stop, lookupDomain=''):
+def send(target, filename, end_callback=lambda *x, **y: False, lookupDomain=''):
     def send_actual(**kwargs):
         c = ClientCreator(reactor, AetherTransferClient)
         x = c.connectTCP(kwargs['hosttarget'], kwargs['port'])
@@ -118,6 +120,7 @@ if __name__ == '__main__':
     if do=='send':
         target = sys.argv[2]
         filename = sys.argv[3]
+        print (target, filename)
         send(target, filename)
         reactor.run()
 

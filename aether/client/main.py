@@ -85,15 +85,17 @@ def browse_callback(addcallback, removecallback, sdRef, flags, interfaceIndex, e
     return resolve(addcallback, serviceName, regtype, interfaceIndex, replyDomain)
 
 
-def browse(regtype, addcallback, removecallback):
+def browse(regtype, addcallback, removecallback, timeout=lambda: False):
 
 
     browse_sdRef = pybonjour.DNSServiceBrowse(regtype = regtype,
             callBack = lambda *x, **y: browse_callback(addcallback, removecallback, *x, **y))
 
-    end = datetime.now() + timedelta(seconds=10)
+    if not callable(timeout):
+        end = datetime.now() + timedelta(seconds=timeout)
+        timeout = lambda: datetime.now()>end
 
-    while(datetime.now()<end):
+    while not timeout():
         ready = select.select([browse_sdRef], [], [], 10) 
         if browse_sdRef in ready[0]:
             pybonjour.DNSServiceProcessResult(browse_sdRef)
@@ -118,7 +120,7 @@ if __name__ == '__main__':
 
     if do=='list':
         d = {}
-        browse(regtype, lambda serviceName, *a, **b: d.__setitem__(serviceName, (a, b)), lambda serviceName: d.__delitem__(serviceName))
+        browse(regtype, lambda serviceName, *a, **b: d.__setitem__(serviceName, (a, b)), lambda serviceName: d.__delitem__(serviceName), timeout)
         print d
 
     if do=='ui':

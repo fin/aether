@@ -50,7 +50,7 @@ def resolve_callback(addcallback, serviceName, regtype, replyDomain, sdRef, flag
             txtRecord=txtRecord)
 
 
-def resolve(addcallback, serviceName, regtype, interfaceIndex=6, replyDomain=None):
+def resolve(addcallback, serviceName, regtype, interfaceIndex=0, replyDomain=None):
     replyDomain = replyDomain or 'local.'
 
     def cb(*x, **y):

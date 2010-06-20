@@ -1,6 +1,7 @@
 from twisted.protocols.basic import LineReceiver, FileSender
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet import  reactor
+import twisted.internet.error
 import base64
 import json
 import os, os.path
@@ -93,7 +94,17 @@ class AetherTransferClient(Protocol):
         return  {'name': os.path.split(filename)[1],
                  'size': os.path.getsize(filename)}
 
-    def sendFile(self, filename):
+    def sendFile(self, filename, callback = lambda x,y: (x,y)):
+        class ProgressMeter(object):
+            def __init__(self, filename, callback):
+                self.transferred = 0
+                self.full = os.path.getsize(filename)
+                self.callback = callback
+            def monitor(self, data):
+                self.transferred += len(data)
+                self.callback(self.transferred, self.full)
+                return data
+
         self.fp = open(filename, 'r')
         self.sentBytes = 0
 
@@ -105,7 +116,9 @@ class AetherTransferClient(Protocol):
         sender = FileSender()
         sender.CHUNK_SIZE = 2 ** 16
 
-        d = sender.beginFileTransfer(self.fp, self.transport)
+        pm = ProgressMeter(filename, callback)
+
+        d = sender.beginFileTransfer(self.fp, self.transport, pm.monitor)
 
         d.addCallback(self.done)
 
@@ -113,6 +126,7 @@ class AetherTransferClient(Protocol):
         self.transport.loseConnection()
 
     def connectionLost(self, reason):
-        print 'lost'
+        if reason.type != twisted.internet.error.ConnectionDone:
+            print reason
         reactor.stop()
 

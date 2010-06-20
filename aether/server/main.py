@@ -6,11 +6,9 @@ from aether.protocol.protocol import AetherTransferServerFactory
 from twisted.internet import reactor, threads
 
 import time
+import sys
 import pybonjour
 
-regtype = u'_at_nomin_aether._tcp'
-name = 'fin@finkpad'
-port = 9999
 
 class Lol:
     def __init__(self):
@@ -24,19 +22,33 @@ class Lol:
             self.last_received = received
             print (self.last_received, received)
 
-l = Lol()
-sdRef = None
+class Service(object):
+    def __init__(self, name, path, cbhandler):
+        self.regtype = u'_at_nomin_aether._tcp'
+        self.name = name
+        self.path = path
+        self.port = 9999
+        self.cbhandler = cbhandler
+
+    def listen(self):
+        factory = AetherTransferServerFactory(self.path, self.cbhandler)
+        self.port = reactor.listenTCP(0, factory).getHost().port
+        self.sdRef = pybonjour.DNSServiceRegister(name = self.name,
+                                             regtype = self.regtype,
+                                             port = self.port,
+                                             callBack = lambda **x: x)
+    def stop(self):
+        self.sdRef.close()
+
 
 if __name__ == '__main__':
+    x = None
     try:
-        factory = AetherTransferServerFactory('/tmp', l.cb)
-        reactor.listenTCP(port, factory)
-        sdRef = pybonjour.DNSServiceRegister(name = name,
-                                             regtype = regtype,
-                                             port = port,
-                                             callBack = lambda **x: x)
+        l = Lol()
+        x = Service('fin' if len(sys.argv)<2 else sys.argv[1], '/tmp', l.cb)
+        x.listen()
         reactor.run()
     finally:
-        if sdRef:
-            sdRef.close()
+        if x:
+            x.stop()
 

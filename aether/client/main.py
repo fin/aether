@@ -4,10 +4,7 @@
 
 import sys, math
 
-if sys.argv[1]=='ui':
-    from twisted.internet import gtk2reactor # for gtk-2.0
-    gtk2reactor.install()
-from twisted.internet import reactor, threads
+from twisted.internet import reactor
 
 from aether.protocol.protocol import AetherTransferClient
 from twisted.internet.protocol import ClientCreator
@@ -28,13 +25,16 @@ timeout = 5
 resolved = {}
 
 class Sender(object):
-    def __init__(self, filename):
+    def __init__(self, filename, end_callback):
         self.filename = filename
         import progressbar
         self.pb = progressbar.ProgressBar().start()
         self.pbcur= 0
+        self.cb = end_callback
     def send(self, x):
+        x.end_callback = self.cb
         reactor.callLater(1, x.sendFile, self.filename, self.callback)
+
     def callback(self, done, full):
         newval = math.floor(done/full*self.pb.maxval)
         if self.pbcur != newval:
@@ -42,13 +42,13 @@ class Sender(object):
             self.pb.update(self.pbcur)
 
 
-def resolve_callback(addcallback, serviceName, sdRef, flags, interfaceIndex, errorCode, fullname,
+def resolve_callback(addcallback, serviceName, regtype, replyDomain, sdRef, flags, interfaceIndex, errorCode, fullname,
                         hosttarget, port, txtRecord):
     if errorCode:
         print errorCode
         return
     resolved[serviceName] = 'lol'
-    addcallback(serviceName=serviceName, sdRef=sdRef, flags=flags, interfaceIndex=interfaceIndex,
+    addcallback(serviceName=serviceName, regtype=regtype, replyDomain=replyDomain, sdRef=sdRef, flags=flags, interfaceIndex=interfaceIndex,
             errorCode=errorCode, fullname=fullname, hosttarget=hosttarget, port=port,
             txtRecord=txtRecord)
 
@@ -59,8 +59,12 @@ def resolve(addcallback, serviceName, regtype, interfaceIndex=0, replyDomain='')
                                                     serviceName,
                                                     regtype,
                                                     replyDomain,
-                                                    lambda *x, **y: resolve_callback(addcallback, serviceName, *x, **y))
+                                                    lambda *x, **y: resolve_callback(addcallback, serviceName, regtype, replyDomain, *x, **y))
     try:
+        try:
+            del resolved[serviceName]
+        except Exception, e:
+            pass
         while not serviceName in resolved:
             ready = select.select([resolve_sdRef], [], [], 1)
             if resolve_sdRef not in ready[0]:
@@ -79,7 +83,7 @@ def browse_callback(addcallback, removecallback, sdRef, flags, interfaceIndex, e
         print errorCode
         return
     if not (flags & pybonjour.kDNSServiceFlagsAdd):
-        removecallback(serviceName=serviceName)
+        removecallback(serviceName=serviceName, regtype=regtype, replyDomain=replyDomain)
         return
 
     return resolve(addcallback, serviceName, regtype, interfaceIndex, replyDomain)
@@ -96,19 +100,18 @@ def browse(regtype, addcallback, removecallback, timeout=lambda: False):
         timeout = lambda: datetime.now()>end
 
     while not timeout():
-        ready = select.select([browse_sdRef], [], [], 10) 
+        ready = select.select([browse_sdRef], [], [], 1) 
         if browse_sdRef in ready[0]:
             pybonjour.DNSServiceProcessResult(browse_sdRef)
+    print 'done'
 
 
-def send(target, filename):
+def send(target, filename, end_callback=reactor.stop, lookupDomain=''):
     def send_actual(**kwargs):
         c = ClientCreator(reactor, AetherTransferClient)
-       
-        x = c.connectTCP(kwargs['hosttarget'], 9999)
-        x.addCallback(Sender(filename).send)
-        reactor.run()
-    resolve(send_actual, target, regtype)
+        x = c.connectTCP(kwargs['hosttarget'], kwargs['port'])
+        x.addCallback(Sender(filename, end_callback).send)
+    resolve(send_actual, target, regtype, 0, lookupDomain)
 
 if __name__ == '__main__':
     do = sys.argv[1]
@@ -116,23 +119,17 @@ if __name__ == '__main__':
         target = sys.argv[2]
         filename = sys.argv[3]
         send(target, filename)
+        reactor.run()
 
 
     if do=='list':
         d = {}
-        browse(regtype, lambda serviceName, *a, **b: d.__setitem__(serviceName, (a, b)), lambda serviceName: d.__delitem__(serviceName), timeout)
+        browse(regtype,
+                lambda serviceName, regtype, replyDomain, *a, **b: d.__setitem__((serviceName, regtype, replyDomain,), (a, b)),
+                lambda serviceName, regtype, replyDomain: d.__delitem__((serviceName, regtype, replyDomain,)),
+                timeout)
         print d
 
     if do=='ui':
         print 'ohlol'
-        import gtk
-        quit = gtk.ImageMenuItem('gtk-quit')
-        quit.connect('activate', gtk.main_quit)
-
-        si = gtk.status_icon_new_from_file('statusicon.png')
-        menu = gtk.Menu()
-        menu.append(quit)
-        menu.show_all()
-        si.connect('popup-menu', lambda tray, button, time: menu.popup(None, None, None, button, time))
-        reactor.run()
 

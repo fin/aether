@@ -90,6 +90,9 @@ class AetherTransferClient(Protocol):
         * rawmode: file data
     """
 
+    def __init__(self):
+        self.end_callback = reactor.stop
+
     def _mkHeaders(self, filename):
         return  {'name': os.path.split(filename)[1],
                  'size': os.path.getsize(filename)}
@@ -128,5 +131,5 @@ class AetherTransferClient(Protocol):
     def connectionLost(self, reason):
         if reason.type != twisted.internet.error.ConnectionDone:
             print reason
-        reactor.stop()
+        self.end_callback()
 

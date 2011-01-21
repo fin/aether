@@ -22,17 +22,20 @@ timeout = 5
 resolved = {}
 
 class Sender(object):
-    def __init__(self, filename, end_callback):
+    def __init__(self, filename, end_callback, progress_callback=None):
         self.filename = filename
-        import progressbar
-        self.pb = progressbar.ProgressBar().start()
-        self.pbcur= 0
-        self.cb = end_callback
-    def send(self, x):
-        x.end_callback = self.cb
-        reactor.callLater(1, x.sendFile, self.filename, self.callback)
+        self.progress_callback = progress_callback
+        if not progress_callback:
+            import progressbar
+            self.pb = progressbar.ProgressBar().start()
+            self.pbcur = 0
+        self.end_callback = end_callback
 
-    def callback(self, done, full):
+    def send(self, x): # x is probably the reactor here
+        x.end_callback = self.end_callback
+        reactor.callLater(1, x.sendFile, self.filename, self.progress_callback or self.default_callback)
+
+    def default_callback(self, done, full):
         newval = math.floor(done/full*self.pb.maxval)
         if self.pbcur != newval:
             self.pbcur= newval
@@ -92,8 +95,6 @@ def browse_callback(addcallback, removecallback, sdRef, flags, interfaceIndex, e
 
 
 def browse(regtype, addcallback, removecallback, timeout=lambda: False):
-
-
     browse_sdRef = pybonjour.DNSServiceBrowse(regtype = regtype,
             callBack = lambda *x, **y: browse_callback(addcallback, removecallback, *x, **y))
 
@@ -116,23 +117,31 @@ def send(target, filename, end_callback=lambda *x, **y: False, lookupDomain=''):
     resolve(send_actual, target, regtype, 0, lookupDomain)
 
 if __name__ == '__main__':
-    do = sys.argv[1]
-    if do=='send':
-        target = sys.argv[2]
-        filename = sys.argv[3]
-        print (target, filename)
-        send(target, filename)
-        reactor.run()
+    usage = False
+    try:
+        do = sys.argv[1]
+        if do=='send':
+            target = sys.argv[2]
+            filename = sys.argv[3]
+            print (target, filename)
+            send(target, filename, reactor.stop)
+            reactor.run()
 
 
-    if do=='list':
-        d = {}
-        browse(regtype,
-                lambda serviceName, regtype, replyDomain, *a, **b: d.__setitem__((serviceName, regtype, replyDomain,), (a, b)),
-                lambda serviceName, regtype, replyDomain: d.__delitem__((serviceName, regtype, replyDomain,)),
-                timeout)
-        print d
-
-    if do=='ui':
-        print 'ohlol'
+        elif do=='list':
+            d = {}
+            browse(regtype,
+                    lambda serviceName, regtype, replyDomain, *a, **b: d.__setitem__((serviceName, regtype, replyDomain,), (a, b)),
+                    lambda serviceName, regtype, replyDomain: d.__delitem__((serviceName, regtype, replyDomain,)),
+                    timeout)
+            print d
+        else:
+            usage = True
+    except Exception, e:
+        print e
+        usage = True
+    if usage:
+        print "usage:"
+        print "send $target $filename"
+        print "list"
 

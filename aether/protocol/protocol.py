@@ -5,6 +5,7 @@ import twisted.internet.error
 import base64
 import json
 import os, os.path
+import urllib
 
 from aexceptions import *
 
@@ -108,7 +109,7 @@ class AetherTransferClient(Protocol):
                 self.callback(self.transferred, self.full)
                 return data
 
-        self.fp = open(filename, 'r')
+        self.fp = urllib.urlopen(filename)
         self.sentBytes = 0
 
         d = self._mkHeaders(filename)

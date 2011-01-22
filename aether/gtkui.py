@@ -171,6 +171,7 @@ class ReceiveHandler(object):
         self.transfers = {}
 
     def cb(self, name, received, total):
+        print name
         ui = self.transfers.get(name, None) or pynotify.Notification(name)
         ui.set_timeout(1)
         self.transfers[name]=ui

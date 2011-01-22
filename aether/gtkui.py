@@ -136,7 +136,8 @@ def thing_dropped(serviceName, widget, context, x, y, selection, target_type, ti
         return True
     return False
 
-def ui_add(serviceName, regtype, replyDomain, *a, **b):
+def ui_add(serviceName, regtype, replyDomain, hosttarget, *a, **b):
+    print hosttarget
     k = (serviceName, regtype, replyDomain,)
     if not k in services:
         mi = gtk.MenuItem(serviceName)
@@ -170,8 +171,8 @@ class ReceiveHandler(object):
         self.last_received = 0
         self.transfers = {}
 
-    def cb(self, name, received, total):
-        print name
+    def cb(self, client, name, received, total):
+        name = str(client)+name
         ui = self.transfers.get(name, None) or pynotify.Notification(name)
         ui.set_timeout(1)
         self.transfers[name]=ui

@@ -48,6 +48,7 @@ def resolve_callback(addcallback, serviceName, regtype, replyDomain, sdRef, flag
         print errorCode
         return
     resolved[serviceName] = 'lol'
+    print serviceName, regtype, replyDomain, sdRef, flags, interfaceIndex, errorCode, fullname, hosttarget, port, txtRecord
     addcallback(serviceName=serviceName, regtype=regtype, replyDomain=replyDomain, sdRef=sdRef, flags=flags, interfaceIndex=interfaceIndex,
             errorCode=errorCode, fullname=fullname, hosttarget=hosttarget, port=port,
             txtRecord=txtRecord)
@@ -113,6 +114,7 @@ def send(target, filename, end_callback=lambda *x, **y: False, lookupDomain='', 
     def send_actual(**kwargs):
         c = ClientCreator(reactor, AetherTransferClient)
         x = c.connectTCP(kwargs['hosttarget'], kwargs['port'])
+        print kwargs['hosttarget']
         x.addCallback(Sender(filename, end_callback, progress_callback).send)
     resolve(send_actual, target, regtype, 0, lookupDomain)
 

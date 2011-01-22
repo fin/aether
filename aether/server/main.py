@@ -14,7 +14,7 @@ class Lol:
     def __init__(self):
         self.last_received = 0
 
-    def cb(self, name, received, total):
+    def cb(self, client, name, received, total):
         promille = total / 1000
         if promille < 4096:
             promille = 4096

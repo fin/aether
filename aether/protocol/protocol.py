@@ -9,7 +9,7 @@ import urllib
 
 from aexceptions import *
 
-class AetherTransferServer(LineReceiver):
+class AetherTransferServer(LineReceiver, object):
     """ listen and receive files:
         * first get metadata line [size; filename] as json
         * then switch to raw mode & receive the file
@@ -19,6 +19,13 @@ class AetherTransferServer(LineReceiver):
         self.fp = None
         self.absolute_filename = None
         self.receivedBytes = 0
+        self.client = None
+
+    def makeConnection(self, transport):
+        print 'makeConnection'
+        print transport.__dict__
+        self.client = transport.client
+        super(AetherTransferServer, self).makeConnection(transport)
 
     def connectionMade(self):
         pass
@@ -62,7 +69,7 @@ class AetherTransferServer(LineReceiver):
         if self.receivedBytes > self.filesize:
             raise AeInvalidFilesizeException(self.receivedBytes, self.filesize)
         
-        self.factory.progressCallback(self.absolute_filename, self.receivedBytes, self.filesize)
+        self.factory.progressCallback(self.client, self.absolute_filename, self.receivedBytes, self.filesize)
 
 
     def connectionLost(self, reason):

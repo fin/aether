@@ -109,11 +109,11 @@ def browse(regtype, addcallback, removecallback, timeout=lambda: False):
     print 'done'
 
 
-def send(target, filename, end_callback=lambda *x, **y: False, lookupDomain=''):
+def send(target, filename, end_callback=lambda *x, **y: False, lookupDomain='', progress_callback=None):
     def send_actual(**kwargs):
         c = ClientCreator(reactor, AetherTransferClient)
         x = c.connectTCP(kwargs['hosttarget'], kwargs['port'])
-        x.addCallback(Sender(filename, end_callback).send)
+        x.addCallback(Sender(filename, end_callback, progress_callback).send)
     resolve(send_actual, target, regtype, 0, lookupDomain)
 
 if __name__ == '__main__':

@@ -102,14 +102,20 @@ class AetherTransferClient(Protocol):
         self.end_callback = reactor.stop
 
     def _mkHeaders(self, filename):
-        return  {'name': os.path.split(filename)[1],
-                 'size': os.path.getsize(filename)}
+        fp = urllib.urlopen(filename)
+        return  {'name': fp.fp.name,
+                 'size': int(fp.headers['Content-Length']),}
 
     def sendFile(self, filename, callback = lambda x,y: (x,y)):
+        d = self._mkHeaders(filename)
+
+        print d['size']
+
+
         class ProgressMeter(object):
             def __init__(self, filename, callback):
                 self.transferred = 0
-                self.full = os.path.getsize(filename)
+                self.full = d['size']
                 self.callback = callback
             def monitor(self, data):
                 self.transferred += len(data)
@@ -119,7 +125,6 @@ class AetherTransferClient(Protocol):
         self.fp = urllib.urlopen(filename)
         self.sentBytes = 0
 
-        d = self._mkHeaders(filename)
 
         self.transport.write(base64.encodestring(json.dumps(d)))
         self.transport.write('\r\n')

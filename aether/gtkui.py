@@ -3,6 +3,7 @@ import pynotify
 import sys
 import copy
 import signal
+import socket
 
 
 sys.path.append('..')
@@ -38,9 +39,19 @@ TARGET_TYPE_URI_LIST = 80
 def ui_quit(*a,**b):
     try:
         print 'quitting'
-        run.remove('lol')
-        reactor.callFromThread(gtk.main_quit)
-        reactor.callFromThread(reactor.stop)
+        try:
+            run.remove('lol')
+        except Exception, e:
+            print e
+        try:
+            reactor.callFromThread(gtk.main_quit)
+        except Exception, e:
+            gtk.main_quit()
+            print e
+        try:
+            reactor.callFromThread(reactor.stop)
+        except Exception, e:
+            print e
     except Exception, e:
         print e
 
@@ -106,8 +117,8 @@ def motion_cb(wid, context, x, y, time):
     return True
 
 class Transfer(object):
-    def __init__(self, to, parent_widget, uri):
-        self.to = to
+    def __init__(self, peer, parent_widget, uri):
+        self.peer = peer
         self.parent_widget = parent_widget
         self.uri = uri
 
@@ -120,7 +131,7 @@ class Transfer(object):
 
 
 
-def thing_dropped(serviceName, widget, context, x, y, selection, target_type, timestamp):
+def thing_dropped(service, widget, context, x, y, selection, target_type, timestamp):
     if target_type == TARGET_TYPE_URI_LIST:
         uri = selection.data.strip('\r\n\x00')
         print 'uri', uri
@@ -128,9 +139,10 @@ def thing_dropped(serviceName, widget, context, x, y, selection, target_type, ti
         for uri in uri_splitted:
             path = get_file_path_from_dnd_dropped_uri(uri)
             if os.path.isfile(path): # is it file?
-                transfer = Transfer(to=serviceName, parent_widget=widget, uri=uri)
-                reactor.callInThread(send, serviceName, path, lambda *x, **y: False, '', transfer.progress)
+                transfer = Transfer(peer=service, parent_widget=widget, uri=uri)
                 widget.pack_start(transfer.widget, False, True)
+                service['transfers'].append(transfer)
+                reactor.callInThread(send, service['k'][0], path, lambda *x, **y: service['transfers'].remove(transfer), '', transfer.progress)
                 
         context.finish(True, False, timestamp)
         return True
@@ -150,11 +162,11 @@ def ui_add(serviceName, regtype, replyDomain, hosttarget, *a, **b):
         discovered.pack_start(x, False, True)
 
         x.connect('drag_motion', motion_cb)
+        services[k]={'k': k, 'data1': a, 'data2': b, 'menu_item': mi, 'ip': socket.gethostbyname(hosttarget), 'transfers': [], 'listitem': x,}
         x.drag_dest_set( gtk.DEST_DEFAULT_MOTION | gtk.DEST_DEFAULT_HIGHLIGHT | gtk.DEST_DEFAULT_DROP, [('text/uri-list', 0, TARGET_TYPE_URI_LIST,) ], gtk.gdk.ACTION_COPY)
-        x.connect('drag_data_received', lambda *args, **kwargs: thing_dropped(serviceName, *args, **kwargs))
+        x.connect('drag_data_received', lambda *args, **kwargs: thing_dropped(services[k], *args, **kwargs))
 
 
-        services[k]={'k': k, 'data1': a, 'data2': b, 'menu_item': mi}
 
 
 def ui_remove(serviceName, regtype, replyDomain):
@@ -172,21 +184,46 @@ class ReceiveHandler(object):
         self.transfers = {}
 
     def cb(self, client, name, received, total):
-        name = str(client)+name
-        ui = self.transfers.get(name, None) or pynotify.Notification(name)
-        ui.set_timeout(1)
-        self.transfers[name]=ui
-        promille = total / 1000
-        if promille < 4096:
-            promille = 4096
-        if self.last_received + promille < received:
-            self.last_received = received
-            ui.update(name, '%d / %d' % (received, total))
-            ui.show()
-        if self.last_received==total:
-            ui.update(name, '%d / %d' % (received, total))
-            ui.show()
-            del self.transfers[name]
+        print 'lol?'
+        service = None
+        for s in services.values():
+            if s['ip']==client[0]:
+                service = s
+                break
+
+    
+        try:
+            if service:
+                print 'receiving w/ service'
+                transfers = [x for x in s['transfers'] if x.uri==name]
+                if not transfers:
+                    transfer = Transfer(peer=s, parent_widget=s['listitem'], uri=name)
+                    s['transfers'].append(transfer)
+                    gtk.idle_add(s['listitem'].pack_start, transfer.widget, False, True)
+                else:
+                    transfer = transfers[0] 
+
+                gtk.idle_add(transfer.progress, received, total)
+            else:
+                print 'receiving w/o service'
+        except Exception, e:
+            print e
+#
+#            name = str(client)+name
+#            ui = self.transfers.get(name, None) or pynotify.Notification(name)
+#            ui.set_timeout(1)
+#            self.transfers[name]=ui
+#            promille = total / 1000
+#            if promille < 4096:
+#                promille = 4096
+#            if self.last_received + promille < received:
+#                self.last_received = received
+#                ui.update(name, '%d / %d' % (received, total))
+#                ui.show()
+#            if self.last_received==total:
+#                ui.update(name, '%d / %d' % (received, total))
+#                ui.show()
+#                del self.transfers[name]
 
             
 

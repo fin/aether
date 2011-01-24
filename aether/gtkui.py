@@ -1,4 +1,5 @@
 import gtk
+import gobject
 import pynotify
 import sys
 import copy
@@ -126,8 +127,8 @@ class Transfer(object):
 
     def progress(self, done, full):
         fraction= float(done)/float(full)
-        gtk.idle_add(self.widget.get_children()[0].set_fraction, fraction)
-        gtk.idle_add(self.widget.get_children()[1].set_text, str(fraction))
+        gobject.idle_add(self.widget.get_children()[0].set_fraction, fraction)
+        gobject.idle_add(self.widget.get_children()[1].set_text, str(fraction))
 
 
 
@@ -199,11 +200,11 @@ class ReceiveHandler(object):
                 if not transfers:
                     transfer = Transfer(peer=s, parent_widget=s['listitem'], uri=name)
                     s['transfers'].append(transfer)
-                    gtk.idle_add(s['listitem'].pack_start, transfer.widget, False, True)
+                    gobject.idle_add(s['listitem'].pack_start, transfer.widget, False, True)
                 else:
                     transfer = transfers[0] 
 
-                gtk.idle_add(transfer.progress, received, total)
+                gobject.idle_add(transfer.progress, received, total)
             else:
                 print 'receiving w/o service'
         except Exception, e:

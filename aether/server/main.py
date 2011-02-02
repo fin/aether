@@ -14,7 +14,10 @@ class Lol:
     def __init__(self):
         self.last_received = 0
 
-    def cb(self, client, name, received, total):
+    def cb(self, client, name, received, total, failed=False):
+        if failed:
+            print "%s failed :/" % name
+            return
         promille = total / 1000
         if promille < 4096:
             promille = 4096
@@ -23,13 +26,14 @@ class Lol:
             print (self.last_received, received)
 
 class Service(object):
-    def __init__(self, name, path, cbhandler):
+    def __init__(self, name, path, cbhandler, endcb=None):
         self.regtype = u'_at_nomin_aether._tcp'
         self.name = name
         self.path = path
         self.port = 9999
         self.socket = None
         self.cbhandler = cbhandler
+        self.endcb = endcb
 
     def listen(self):
         factory = AetherTransferServerFactory(self.path, self.cbhandler)

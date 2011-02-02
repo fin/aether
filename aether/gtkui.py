@@ -6,6 +6,8 @@ import copy
 import signal
 import socket
 
+import getpass
+
 
 sys.path.append('..')
 
@@ -18,6 +20,7 @@ from aether.server.main import Service
 import urllib, os
 
 regtype = u'_at_nomin_aether._tcp'
+SERVICENAME = '%s@%s' % (getpass.getuser(), socket.gethostname(),) 
 
 
 services = {}
@@ -61,6 +64,11 @@ builder = gtk.Builder()
 builder.add_from_file("glade/glaether.glade")
 builder.connect_signals({ "on_window_destroy" : ui_quit })
 window = builder.get_object('window')
+
+window.get_children()[0].get_children()[1].get_children()[0].modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color(0xaaaaaa,0xaaaaaa,0xaaaaaa))
+window.get_children()[0].get_children()[0].get_children()[0].set_text(SERVICENAME)
+window.get_children()[0].get_children()[0].get_children()[1].set_text("Receiving to ~/Downloads")
+
 discovered = builder.get_object('discovered')
 window.show()
 
@@ -124,13 +132,21 @@ class Transfer(object):
         self.uri = uri
 
         self.widget = get_widget('transfer')
+        gobject.idle_add(self.widget.get_children()[0].get_children()[0].set_text, uri.split('/')[-1])
 
     def progress(self, done, full):
         fraction= float(done)/float(full)
-        gobject.idle_add(self.widget.get_children()[0].set_fraction, fraction)
-        gobject.idle_add(self.widget.get_children()[1].set_text, str(fraction))
+        gobject.idle_add(self.widget.get_children()[0].get_children()[0].set_fraction, fraction)
+        if done == full:
+            gobject.idle_add(self.parent_widget.remove, self.widget)
+            pynotify.Notification('%s done' % self.uri.split('/')[-1]).show()
 
+    def failed(self):
+        gobject.idle_add(self.parent_widget.remove, self.widget)
+        pynotify.Notification('%s failed' % self.uri.split('/')[-1]).show()
 
+def transfer_over(service, transfer, failed=None):
+    service['transfers'].remove(transfer)
 
 def thing_dropped(service, widget, context, x, y, selection, target_type, timestamp):
     if target_type == TARGET_TYPE_URI_LIST:
@@ -143,7 +159,7 @@ def thing_dropped(service, widget, context, x, y, selection, target_type, timest
                 transfer = Transfer(peer=service, parent_widget=widget, uri=uri)
                 widget.pack_start(transfer.widget, False, True)
                 service['transfers'].append(transfer)
-                reactor.callInThread(send, service['k'][0], path, lambda *x, **y: service['transfers'].remove(transfer), '', transfer.progress)
+                reactor.callInThread(send, service['k'][0], path, lambda *x, **y: transfer_over(service, transfer), '', transfer.progress)
                 
         context.finish(True, False, timestamp)
         return True
@@ -152,6 +168,9 @@ def thing_dropped(service, widget, context, x, y, selection, target_type, timest
 def ui_add(serviceName, regtype, replyDomain, hosttarget, *a, **b):
     print hosttarget
     k = (serviceName, regtype, replyDomain,)
+    if serviceName == SERVICENAME:
+        print 'ignoring %s' % serviceName
+        return
     if not k in services:
         mi = gtk.MenuItem(serviceName)
         mi.connect('activate', lambda _: ui_click(services[k]))
@@ -159,13 +178,15 @@ def ui_add(serviceName, regtype, replyDomain, hosttarget, *a, **b):
         menu.show_all()
         x = get_widget('recipient')
         x.get_children()[0].set_text(serviceName)
-
-        discovered.pack_start(x, False, True)
-
         x.connect('drag_motion', motion_cb)
-        services[k]={'k': k, 'data1': a, 'data2': b, 'menu_item': mi, 'ip': socket.gethostbyname(hosttarget), 'transfers': [], 'listitem': x,}
+
+
         x.drag_dest_set( gtk.DEST_DEFAULT_MOTION | gtk.DEST_DEFAULT_HIGHLIGHT | gtk.DEST_DEFAULT_DROP, [('text/uri-list', 0, TARGET_TYPE_URI_LIST,) ], gtk.gdk.ACTION_COPY)
+
+        services[k]={'k': k, 'data1': a, 'data2': b, 'menu_item': mi, 'ip': socket.gethostbyname(hosttarget), 'transfers': [], 'listitem': x,}
         x.connect('drag_data_received', lambda *args, **kwargs: thing_dropped(services[k], *args, **kwargs))
+        
+        gobject.idle_add(discovered.pack_start, x, False, True)
 
 
 
@@ -173,7 +194,8 @@ def ui_add(serviceName, regtype, replyDomain, hosttarget, *a, **b):
 def ui_remove(serviceName, regtype, replyDomain):
     k = (serviceName, regtype, replyDomain,)
     try:
-        menu.remove(services[k]['menu_item'])
+        gobject.idle_add(menu.remove, services[k]['menu_item'])
+        gobject.idle_add(discovered.remove, services[k]['listitem'])
         del services[k]
     except Exception, e:
         print e
@@ -184,8 +206,7 @@ class ReceiveHandler(object):
         self.last_received = 0
         self.transfers = {}
 
-    def cb(self, client, name, received, total):
-        print 'lol?'
+    def cb(self, client, name, received, total, failed=False):
         service = None
         for s in services.values():
             if s['ip']==client[0]:
@@ -195,7 +216,6 @@ class ReceiveHandler(object):
     
         try:
             if service:
-                print 'receiving w/ service'
                 transfers = [x for x in s['transfers'] if x.uri==name]
                 if not transfers:
                     transfer = Transfer(peer=s, parent_widget=s['listitem'], uri=name)
@@ -204,33 +224,23 @@ class ReceiveHandler(object):
                 else:
                     transfer = transfers[0] 
 
-                gobject.idle_add(transfer.progress, received, total)
+                if not failed:
+                    gobject.idle_add(transfer.progress, received, total)
+                else:
+                    gobject.idle_add(transfer.failed)
             else:
-                print 'receiving w/o service'
+                pass
         except Exception, e:
             print e
-#
-#            name = str(client)+name
-#            ui = self.transfers.get(name, None) or pynotify.Notification(name)
-#            ui.set_timeout(1)
-#            self.transfers[name]=ui
-#            promille = total / 1000
-#            if promille < 4096:
-#                promille = 4096
-#            if self.last_received + promille < received:
-#                self.last_received = received
-#                ui.update(name, '%d / %d' % (received, total))
-#                ui.show()
-#            if self.last_received==total:
-#                ui.update(name, '%d / %d' % (received, total))
-#                ui.show()
-#                del self.transfers[name]
 
+    def cb_fail(self, client, name, failed):
+        pass
             
 
 
 rh = ReceiveHandler()
-service = Service('finui@finkpad', '/tmp', rh.cb)
+
+service = Service(SERVICENAME, os.path.expanduser('~/Downloads'), rh.cb)
 
 
 

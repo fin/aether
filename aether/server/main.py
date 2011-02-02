@@ -28,16 +28,19 @@ class Service(object):
         self.name = name
         self.path = path
         self.port = 9999
+        self.socket = None
         self.cbhandler = cbhandler
 
     def listen(self):
         factory = AetherTransferServerFactory(self.path, self.cbhandler)
-        self.port = reactor.listenTCP(0, factory).getHost().port
+        self.socket= reactor.listenTCP(0, factory)
+        self.port = self.socket.getHost().port
         self.sdRef = pybonjour.DNSServiceRegister(name = self.name,
                                              regtype = self.regtype,
                                              port = self.port,
                                              callBack = lambda **x: x)
     def stop(self):
+        self.socket.stopListening()
         self.sdRef.close()
 
 

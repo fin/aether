@@ -105,7 +105,7 @@ class AetherTransferClient(Protocol):
 
     def _mkHeaders(self, filename):
         fp = urllib.urlopen(filename)
-        return  {'name': fp.fp.name,
+        return  {'name': fp.fp.name.split('/')[-1],
                  'size': int(fp.headers['Content-Length']),}
 
     def sendFile(self, filename, callback = lambda x,y: (x,y)):

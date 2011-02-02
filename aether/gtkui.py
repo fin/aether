@@ -67,6 +67,7 @@ window = builder.get_object('window')
 
 window.get_children()[0].get_children()[1].get_children()[0].modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color(0xaaaaaa,0xaaaaaa,0xaaaaaa))
 window.get_children()[0].get_children()[0].get_children()[0].set_text(SERVICENAME)
+window.get_children()[0].get_children()[0].get_children()[1].set_text("Receiving to ~/Downloads")
 
 discovered = builder.get_object('discovered')
 window.show()
@@ -138,10 +139,11 @@ class Transfer(object):
         gobject.idle_add(self.widget.get_children()[0].get_children()[0].set_fraction, fraction)
         if done == full:
             gobject.idle_add(self.parent_widget.remove, self.widget)
+            pynotify.Notification('%s done' % self.uri.split('/')[-1]).show()
 
     def failed(self):
         gobject.idle_add(self.parent_widget.remove, self.widget)
-
+        pynotify.Notification('%s failed' % self.uri.split('/')[-1]).show()
 
 def transfer_over(service, transfer, failed=None):
     service['transfers'].remove(transfer)
@@ -166,6 +168,9 @@ def thing_dropped(service, widget, context, x, y, selection, target_type, timest
 def ui_add(serviceName, regtype, replyDomain, hosttarget, *a, **b):
     print hosttarget
     k = (serviceName, regtype, replyDomain,)
+    if serviceName == SERVICENAME:
+        print 'ignoring %s' % serviceName
+        return
     if not k in services:
         mi = gtk.MenuItem(serviceName)
         mi.connect('activate', lambda _: ui_click(services[k]))

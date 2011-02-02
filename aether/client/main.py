@@ -13,7 +13,7 @@ import time
 import select
 from optparse import OptionParser
 from datetime import datetime, timedelta
-
+import traceback
 
 
 
@@ -140,7 +140,7 @@ if __name__ == '__main__':
         else:
             usage = True
     except Exception, e:
-        print e
+        traceback.print_exc(e)
         usage = True
     if usage:
         print "usage:"

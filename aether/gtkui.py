@@ -160,7 +160,6 @@ class Transfer(object):
 
 def transfer_over(service, transfer, failed=None):
     gobject.idle_add(transfer.parent_widget.remove, transfer.widget)
-    service['transfers'].remove(transfer)
 
 def send_thing(transfer, *args, **kwargs):
     transfer.sender = send(*args, **kwargs)

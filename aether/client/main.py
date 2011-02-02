@@ -23,6 +23,7 @@ resolved = {}
 
 class Sender(object):
     def __init__(self, filename, end_callback, progress_callback=None):
+        self.progressmeter = None
         self.filename = filename
         self.progress_callback = progress_callback
         if not progress_callback:
@@ -31,15 +32,23 @@ class Sender(object):
             self.pbcur = 0
         self.end_callback = end_callback
 
+    def sendFile(self, x):
+        self.progressmeter = x.sendFile(self.filename, self.progress_callback or self.default_callback)
+
     def send(self, x): # x is probably the reactor here
         x.end_callback = self.end_callback
-        reactor.callLater(1, x.sendFile, self.filename, self.progress_callback or self.default_callback)
+        reactor.callLater(1, self.sendFile, x)
+        return self
 
     def default_callback(self, done, full):
         newval = math.floor(done/full*self.pb.maxval)
         if self.pbcur != newval:
             self.pbcur= newval
             self.pb.update(self.pbcur)
+
+    def cancel(self):
+        print 'sender: cancel; %s' % self.progressmeter
+        self.progressmeter.cancelled=True
 
 
 def resolve_callback(addcallback, serviceName, regtype, replyDomain, sdRef, flags, interfaceIndex, errorCode, fullname,
@@ -111,12 +120,14 @@ def browse(regtype, addcallback, removecallback, timeout=lambda: False):
 
 
 def send(target, filename, end_callback=lambda *x, **y: False, lookupDomain='', progress_callback=None):
+    sender = Sender(filename, end_callback, progress_callback)
     def send_actual(**kwargs):
         c = ClientCreator(reactor, AetherTransferClient)
         x = c.connectTCP(kwargs['hosttarget'], kwargs['port'])
         print kwargs['hosttarget']
-        x.addCallback(Sender(filename, end_callback, progress_callback).send)
+        x.addCallback(sender.send)
     resolve(send_actual, target, regtype, 0, lookupDomain)
+    return sender
 
 if __name__ == '__main__':
     usage = False

@@ -130,13 +130,20 @@ class Transfer(object):
         self.peer = peer
         self.parent_widget = parent_widget
         self.uri = uri
+        self.sender = None
+        self.cancelled = False
 
         self.widget = get_widget('transfer')
-        gobject.idle_add(self.widget.get_children()[0].get_children()[0].set_text, uri.split('/')[-1])
+        self.progresswidget = self.widget.get_children()[0].get_children()[0].get_children()[0]
+        self.stopimage = self.widget.get_children()[0].get_children()[0].get_children()[1]
+        gobject.idle_add(self.progresswidget.set_text, uri.split('/')[-1])
+
+
+        self.stopimage.connect('clicked', self.cancel)
 
     def progress(self, done, full):
         fraction= float(done)/float(full)
-        gobject.idle_add(self.widget.get_children()[0].get_children()[0].set_fraction, fraction)
+        gobject.idle_add(self.progresswidget.set_fraction, fraction)
         if done == full:
             gobject.idle_add(self.parent_widget.remove, self.widget)
             pynotify.Notification('%s done' % self.uri.split('/')[-1]).show()
@@ -145,8 +152,19 @@ class Transfer(object):
         gobject.idle_add(self.parent_widget.remove, self.widget)
         pynotify.Notification('%s failed' % self.uri.split('/')[-1]).show()
 
+    def cancel(self, sender):
+        print 'transfer: cancel! %s' % self.sender
+        self.cancelled = True
+        if self.sender:
+            self.sender.cancel()
+
 def transfer_over(service, transfer, failed=None):
+    gobject.idle_add(transfer.parent_widget.remove, transfer.widget)
     service['transfers'].remove(transfer)
+
+def send_thing(transfer, *args, **kwargs):
+    transfer.sender = send(*args, **kwargs)
+
 
 def thing_dropped(service, widget, context, x, y, selection, target_type, timestamp):
     if target_type == TARGET_TYPE_URI_LIST:
@@ -159,7 +177,7 @@ def thing_dropped(service, widget, context, x, y, selection, target_type, timest
                 transfer = Transfer(peer=service, parent_widget=widget, uri=uri)
                 widget.pack_start(transfer.widget, False, True)
                 service['transfers'].append(transfer)
-                reactor.callInThread(send, service['k'][0], path, lambda *x, **y: transfer_over(service, transfer), '', transfer.progress)
+                reactor.callInThread(send_thing, transfer, service['k'][0], path, lambda *x, **y: transfer_over(service, transfer), '', transfer.progress)
                 
         context.finish(True, False, timestamp)
         return True
@@ -206,7 +224,7 @@ class ReceiveHandler(object):
         self.last_received = 0
         self.transfers = {}
 
-    def cb(self, client, name, received, total, failed=False):
+    def cb(self, client, name, received, total, failed=False, server=None):
         service = None
         for s in services.values():
             if s['ip']==client[0]:
@@ -222,7 +240,10 @@ class ReceiveHandler(object):
                     s['transfers'].append(transfer)
                     gobject.idle_add(s['listitem'].pack_start, transfer.widget, False, True)
                 else:
-                    transfer = transfers[0] 
+                    transfer = transfers[0]
+                
+                if transfer.cancelled:
+                    server.transport.loseConnection()
 
                 if not failed:
                     gobject.idle_add(transfer.progress, received, total)

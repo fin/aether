@@ -69,7 +69,7 @@ class AetherTransferServer(LineReceiver, object):
         if self.receivedBytes > self.filesize:
             raise AeInvalidFilesizeException(self.receivedBytes, self.filesize)
         
-        self.factory.progressCallback(self.client, self.absolute_filename, self.receivedBytes, self.filesize)
+        self.factory.progressCallback(self.client, self.absolute_filename, self.receivedBytes, self.filesize, server=self)
 
 
     def connectionLost(self, reason):
@@ -80,7 +80,7 @@ class AetherTransferServer(LineReceiver, object):
                 print e
         
         if self.absolute_filename and os.path.getsize(self.absolute_filename) != self.filesize:
-            self.factory.progressCallback(self.client, self.absolute_filename, 0,0,True)
+            self.factory.progressCallback(self.client, self.absolute_filename, 0,0,True, server=self)
 
             raise AeInvalidFilesizeException(self.filesize, os.path.getsize(self.absolute_filename))
 
@@ -91,7 +91,7 @@ class AetherTransferServerFactory(Factory):
         if not os.path.isdir(baseDir) or not os.access(baseDir, os.O_RDWR):
             raise AeNoDirectoryException(baseDir)
         self.baseDir = baseDir
-        self.progressCallback = progressCallback or (lambda *x:x)
+        self.progressCallback = progressCallback or (lambda *x,**y:None)
 
 
 class AetherTransferClient(Protocol):
@@ -113,13 +113,22 @@ class AetherTransferClient(Protocol):
 
         print d['size']
 
+        transport = self.transport
+        end_callback = self.end_callback
 
         class ProgressMeter(object):
             def __init__(self, filename, callback):
                 self.transferred = 0
                 self.full = d['size']
                 self.callback = callback
+                self.cancelled = False
             def monitor(self, data):
+                if self.cancelled:
+                    print 'progressmeter: cancelled!'
+                    transport.unregisterProducer()
+                    transport.loseConnection()
+                    end_callback()
+
                 self.transferred += len(data)
                 self.callback(self.transferred, self.full)
                 return data
@@ -139,6 +148,7 @@ class AetherTransferClient(Protocol):
         d = sender.beginFileTransfer(self.fp, self.transport, pm.monitor)
 
         d.addCallback(self.done)
+        return pm
 
     def done(self, wtf):
         self.transport.loseConnection()

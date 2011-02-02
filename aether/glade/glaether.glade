@@ -94,8 +94,35 @@
         <property name="left_padding">20</property>
         <property name="right_padding">10</property>
         <child>
-          <object class="GtkProgressBar" id="progress">
+          <object class="GtkHPaned" id="hpaned1">
             <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <child>
+              <object class="GtkProgressBar" id="progress">
+                <property name="visible">True</property>
+              </object>
+              <packing>
+                <property name="resize">False</property>
+                <property name="shrink">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="stopbutton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <child>
+                  <object class="GtkImage" id="image2">
+                    <property name="visible">True</property>
+                    <property name="stock">gtk-stop</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="resize">True</property>
+                <property name="shrink">True</property>
+              </packing>
+            </child>
           </object>
         </child>
       </object>

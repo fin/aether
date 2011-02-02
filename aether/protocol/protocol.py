@@ -80,6 +80,8 @@ class AetherTransferServer(LineReceiver, object):
                 print e
         
         if self.absolute_filename and os.path.getsize(self.absolute_filename) != self.filesize:
+            self.factory.progressCallback(self.client, self.absolute_filename, 0,0,True)
+
             raise AeInvalidFilesizeException(self.filesize, os.path.getsize(self.absolute_filename))
 
 class AetherTransferServerFactory(Factory):
@@ -99,7 +101,7 @@ class AetherTransferClient(Protocol):
     """
 
     def __init__(self):
-        self.end_callback = reactor.stop
+        self.end_callback = lambda *x, **y: reactor.stop
 
     def _mkHeaders(self, filename):
         fp = urllib.urlopen(filename)

@@ -80,7 +80,7 @@ class AetherTransferServer(LineReceiver, object):
                 print e
         
         if self.absolute_filename and os.path.getsize(self.absolute_filename) != self.filesize:
-            self.factory.progressCallback(self.client, self.absolute_filename, 0,0,True, server=self)
+            self.factory.progressCallback(self.client, self.absolute_filename, 0,0, True, server=self)
 
             raise AeInvalidFilesizeException(self.filesize, os.path.getsize(self.absolute_filename))
 

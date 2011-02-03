@@ -37,7 +37,7 @@ class Sender(object):
 
     def send(self, x): # x is probably the reactor here
         x.end_callback = self.end_callback
-        reactor.callLater(1, self.sendFile, x)
+        reactor.callFromThread(self.sendFile, x)
         return self
 
     def default_callback(self, done, full):
@@ -56,7 +56,6 @@ def resolve_callback(addcallback, serviceName, regtype, replyDomain, sdRef, flag
     if errorCode:
         print errorCode
         return
-    resolved[serviceName] = 'lol'
     print serviceName, regtype, replyDomain, sdRef, flags, interfaceIndex, errorCode, fullname, hosttarget, port, txtRecord
     addcallback(serviceName=serviceName, regtype=regtype, replyDomain=replyDomain, sdRef=sdRef, flags=flags, interfaceIndex=interfaceIndex,
             errorCode=errorCode, fullname=fullname, hosttarget=hosttarget, port=port,
@@ -76,10 +75,6 @@ def resolve(addcallback, serviceName, regtype, interfaceIndex=0, replyDomain=Non
                                                     replyDomain,
                                                     cb)
     try:
-        try:
-            del resolved[serviceName]
-        except Exception, e:
-            pass
         while not serviceName in resolved:
             ready = select.select([resolve_sdRef], [], [], 1)
             if resolve_sdRef not in ready[0]:
@@ -121,7 +116,9 @@ def browse(regtype, addcallback, removecallback, timeout=lambda: False):
 
 def send(target, filename, end_callback=lambda *x, **y: False, lookupDomain='', progress_callback=None):
     sender = Sender(filename, end_callback, progress_callback)
+    print 'send: %s' % filename
     def send_actual(**kwargs):
+        print 'send_actual: %s' % filename
         c = ClientCreator(reactor, AetherTransferClient)
         x = c.connectTCP(kwargs['hosttarget'], kwargs['port'])
         print kwargs['hosttarget']

@@ -162,6 +162,7 @@ def transfer_over(service, transfer, failed=None):
     gobject.idle_add(transfer.parent_widget.remove, transfer.widget)
 
 def send_thing(transfer, *args, **kwargs):
+    print 'sending thing'
     transfer.sender = send(*args, **kwargs)
 
 
@@ -174,7 +175,7 @@ def thing_dropped(service, widget, context, x, y, selection, target_type, timest
             path = get_file_path_from_dnd_dropped_uri(uri)
             if os.path.isfile(path): # is it file?
                 transfer = Transfer(peer=service, parent_widget=widget, uri=uri)
-                widget.pack_start(transfer.widget, False, True)
+                gobject.idle_add(widget.pack_start, transfer.widget, False, True)
                 service['transfers'].append(transfer)
                 reactor.callInThread(send_thing, transfer, service['k'][0], path, lambda *x, **y: transfer_over(service, transfer), '', transfer.progress)
                 

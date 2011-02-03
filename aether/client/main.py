@@ -56,14 +56,18 @@ def resolve_callback(addcallback, serviceName, regtype, replyDomain, sdRef, flag
     if errorCode:
         print errorCode
         return
-    print serviceName, regtype, replyDomain, sdRef, flags, interfaceIndex, errorCode, fullname, hosttarget, port, txtRecord
-    addcallback(serviceName=serviceName, regtype=regtype, replyDomain=replyDomain, sdRef=sdRef, flags=flags, interfaceIndex=interfaceIndex,
+    resolved[serviceName] = dict(serviceName=serviceName, regtype=regtype, replyDomain=replyDomain, sdRef=sdRef, flags=flags, interfaceIndex=interfaceIndex,
             errorCode=errorCode, fullname=fullname, hosttarget=hosttarget, port=port,
             txtRecord=txtRecord)
+    print serviceName, regtype, replyDomain, sdRef, flags, interfaceIndex, errorCode, fullname, hosttarget, port, txtRecord
+    addcallback(**resolved[serviceName])
 
 
 def resolve(addcallback, serviceName, regtype, interfaceIndex=0, replyDomain=None):
     replyDomain = replyDomain or 'local.'
+
+    if serviceName in resolved:
+        return addcallback(**resolved[serviceName])
 
     def cb(*x, **y):
         return resolve_callback(addcallback, serviceName, regtype, replyDomain, *x, **y)
@@ -78,6 +82,8 @@ def resolve(addcallback, serviceName, regtype, interfaceIndex=0, replyDomain=Non
         while not serviceName in resolved:
             ready = select.select([resolve_sdRef], [], [], 1)
             if resolve_sdRef not in ready[0]:
+                if serviceName in resolved:
+                    return addcallback(**resolved[serviceName])
                 print 'Resolve timed out'
                 break
             pybonjour.DNSServiceProcessResult(resolve_sdRef)

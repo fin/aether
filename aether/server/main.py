@@ -14,7 +14,7 @@ class Lol:
     def __init__(self):
         self.last_received = 0
 
-    def cb(self, client, name, received, total, failed=False):
+    def cb(self, client, name, received, total, failed=False, server=None):
         if failed:
             print "%s failed :/" % name
             return

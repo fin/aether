@@ -256,7 +256,7 @@ class ReceiveHandler(object):
 
     def cb_fail(self, client, name, failed):
         pass
-            
+
 
 
 rh = ReceiveHandler()

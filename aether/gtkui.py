@@ -64,6 +64,7 @@ builder = gtk.Builder()
 builder.add_from_file("glade/glaether.glade")
 builder.connect_signals({ "on_window_destroy" : ui_quit })
 window = builder.get_object('window')
+window.set_title('aether')
 
 window.get_children()[0].get_children()[1].get_children()[0].modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color(0xaaaaaa,0xaaaaaa,0xaaaaaa))
 window.get_children()[0].get_children()[0].get_children()[0].set_text(SERVICENAME)
